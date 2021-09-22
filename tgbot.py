@@ -1,6 +1,7 @@
 import telebot as tb
 import dotenv 
 import requests
+# -*- coding: UTF-8 -*-
 
 RISPOSTA_NO_BESTEMMIE = 'Non stai partecipando alla gara, cresci porco di quel tuo dio'
 
@@ -12,7 +13,7 @@ users = dict()
 class User:
     #chats{ chatId -> {totale : count}{bestemmia : totale};
 
-    def __init__(self, nome, chats = dict()):
+    def __init__(self, nome, chats):
         #qui dichiaro il dizionario
         self.chats = chats
         self.nome = nome
@@ -60,7 +61,7 @@ def main():
         
         unsortedDic = [us for key, us in users.items() if chatId in us.chats]
         
-        for user in sorted(unsortedDic, key=lambda item: item.chats[chatId]['totale']):
+        for user in sorted(unsortedDic, key=lambda item: item.chats[chatId]['totale'])[::-1]:
             text += f'{user.nome} : {user.chats[chatId]["totale"]}\n'
 
         bot.reply_to(message=message, text=text)
@@ -83,7 +84,7 @@ def main():
         print(usId)
 
         if usId not in users:
-            users[usId] = User(message.from_user.first_name)
+            users[usId] = User(message.from_user.first_name, {chatId:{'totale':0}})
         print(users[usId])
         user = users[usId].chats
         if chatId not in user:
