@@ -80,11 +80,13 @@ collection.update_one(
 #    {"_id":"chatProva"}
 #)
 
+
 result = collection.find_one(
     {"_id":"chatProva", 
         "Users":
             {"$elemMatch":
-                {"_id":"GabboCosti"}}},
+                {"_id":"GabboCosti"}}
+    },
     {"Users.$":1}
 )
 print(result)
