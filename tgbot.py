@@ -1,52 +1,69 @@
 import telebot as tb
 import dotenv 
 import requests
+#import asyncio -> a possible todo : make the db operations async
+import pymongo
+from pymongo import MongoClient as MC
 # -*- coding: UTF-8 -*-
 
-RISPOSTA_NO_BESTEMMIE = 'Non stai partecipando alla gara, cresci porco di quel tuo dio'
+RISPOSTA_NO_BESTEMMIE = 'Grande, non hai mai bestemmiato, proprio un grande, grandissimo, ti farei un quadro, nono davvero sei proprio un grande'
 
 '''
-users -> {userId -> User}
+    la struttura dati del database
+    chats {chatis -> userDict}
+    userDict{userId -> bestemmieDict, score}
+    bestemmieDict{bestemmia -> volteUsata}
 '''
-users = dict()
-
-class User:
-    #chats{ chatId -> {totale : count}{bestemmia : totale};
-
-    def __init__(self, nome, chats):
-        #qui dichiaro il dizionario
-        self.chats = chats
-        self.nome = nome
+'''
+    Wrapper functions for db
+'''
+def putChat(chatID, collection):
+    post = {"_id":chatID, "users":dict()}
+    collection.insert_one(post)
 
 
+def ensureChatExistence(chatID, collection):
+    result = collection.find_one({"_id":chatID})
+    if result is None:
+        putChat(chatID, collection)
+
+def getUser (chatID, userID, collection):
+    collection.find_one({"_id":chatID , "Users":{"$elemMatch":{"_id":userID}}}, {"Users.$":1})
+    pass
 
 def main():
     BASE_URL = "http://bestemmie.org/api/{endpoint}?limit=900"
+    
     token = dotenv.dotenv_values('.env','TOKEN')['TOKEN']
+    dbconn = dotenv.dotenv_values('.env','CONNURL')['CONNURL']
+    cluster = MC(dbconn)
+    db = cluster["Bestemmiometro"]
+    collection = db["Chats"]
+    
     bot = tb.TeleBot(token)
     response = requests.get(BASE_URL.format(endpoint="bestemmie")).json()['results']
 
     @bot.message_handler(commands=['score'])
     def score(message):
         '''
-            prende il tokenString (user id + chat id)
-            nel'if controlla se il dizionario é vuoto
-            controlla ogni bestemmia detta e quante volte nel for
-            TODO Se l'utente ha inviato un messaggio spunterá 0 come totale, si vuole mandare lo stesso il messaggio RISPOSTA_NO_BESTEMMIE
+            calls getChat with the current chatId
+            calls getUser with the current usId
+            scrolls through each profanity
+            if the user never said a profanity says RIPOSTA_NO_BESTEMMIE
         '''
         text = ''
         usId = str(message.from_user.id)
         chatId = str(message.chat.id)
-        
-        if (usId not in users) or (chatId not in users[usId].chats) or (users[usId].chats[chatId]['totale'] == 0):
-            
-            bot.reply_to(message=message, text=RISPOSTA_NO_BESTEMMIE)
-            return
-        
-        user = users[usId].chats[chatId]
 
+        chat = ensureChatExistence(chatId, collection) 
+        
+        user = getUser(chatId, usId, collection)
+
+        
         for key,val in sorted(user.items(), key=lambda item: item[1])[::-1]:
             text += f'{key} : {val}\n'
+        if user["score"] == 0:
+            text = RISPOSTA_NO_BESTEMMIE
         
         bot.reply_to(message=message, text=text)
     
@@ -83,7 +100,7 @@ def main():
 
         print(usId)
 
-        if usId not in users:
+        if chatId not in users:
             users[usId] = User(message.from_user.first_name, {chatId:{'totale':0}})
         print(users[usId])
         user = users[usId].chats
@@ -104,6 +121,8 @@ def main():
     
     
     bot.polling()
+
+
 
 if __name__ == "__main__":
     main()
